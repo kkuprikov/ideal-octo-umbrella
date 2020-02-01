@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
@@ -33,34 +33,22 @@ func GetStreamData(ctx context.Context, url string, control chan string, wg *syn
 		log.Fatal(err)
 	}
 	out := make(chan string)
-	go StoreData(ctx, out, wg)
 
+	go StoreData(ctx, out, wg)
+	go readData(stdout, out, streamID)
+
+	select {
+	case <-ctx.Done():
+		stdout.Close()
+		fmt.Println("ctx done in GetStreamData!")
+	}
+}
+
+func readData(stdout io.ReadCloser, out chan string, streamID string) {
 	scanner := bufio.NewScanner(stdout)
 
 	for scanner.Scan() {
-		select {
-		case c := <-control:
-			controls := strings.Split(c, "_")
-			if (controls[0] == "stats") && (controls[1] == url) {
-				if err := cmd.Process.Kill(); err != nil {
-					log.Fatal("failed to kill stats task: ", err)
-				}
-				fmt.Println("Stats task for %s stopped", url)
-				close(out)
-				return
-			}
-		case <-ctx.Done():
-			fmt.Println("ctx.Done() in GetStreamData")
-
-			if err := cmd.Process.Kill(); err != nil {
-				log.Fatal("failed to kill stats task: ", err)
-			}
-			fmt.Println("Stats task for %s stopped", url)
-			close(out)
-			return
-		default:
-			out <- scanner.Text() + "," + strconv.FormatInt(time.Now().UTC().Unix(), 10) + "," + streamID
-		}
+		out <- scanner.Text() + "," + strconv.FormatInt(time.Now().UTC().Unix(), 10) + "," + streamID
 	}
 
 	if err := scanner.Err(); err != nil {

@@ -11,7 +11,17 @@ func StoreData(ctx context.Context, out chan string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	// read from channel, form some chunks and send to database
 	fmt.Println("Time to store some data!")
-	for v := range out {
-		fmt.Println("Received ", v)
+	for {
+		select {
+		case v, ok := <-out:
+			fmt.Println("Received ", v)
+			if !ok {
+				fmt.Println("Stat channel closed, exiting...")
+				return
+			}
+		case <-ctx.Done():
+			fmt.Println("ctx.Done() in StoreData")
+			return
+		}
 	}
 }
