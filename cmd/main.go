@@ -23,10 +23,10 @@ func main() {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	control := make(chan string)
-	out := make(chan string)
+
 	var wg sync.WaitGroup
 
-	go streamprocessor.Subscribe(ctx, control, out, &wg)
+	go streamprocessor.Subscribe(ctx, control, &wg)
 
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)

@@ -13,9 +13,11 @@ import (
 	"time"
 )
 
-func GetStreamData(ctx context.Context, url string, control chan string, out chan string, wg *sync.WaitGroup) {
+func GetStreamData(ctx context.Context, url string, control chan string, wg *sync.WaitGroup) {
 	wg.Add(1)
 	defer wg.Done()
+
+	streamID := GetID(url)
 
 	args := []string{"-loglevel", "error", "-select_streams", "v:0", "-show_frames",
 		"-show_entries", "frame=key_frame,pkt_duration_time,pkt_size,height,repeat_pict", "-of", "csv", url}
@@ -30,8 +32,8 @@ func GetStreamData(ctx context.Context, url string, control chan string, out cha
 	if err := cmd.Start(); err != nil {
 		log.Fatal(err)
 	}
-
-	go StoreData(ctx, out)
+	out := make(chan string)
+	go StoreData(ctx, out, wg)
 
 	scanner := bufio.NewScanner(stdout)
 
@@ -57,7 +59,7 @@ func GetStreamData(ctx context.Context, url string, control chan string, out cha
 			close(out)
 			return
 		default:
-			out <- scanner.Text() + "," + strconv.FormatInt(time.Now().UTC().Unix(), 10)
+			out <- scanner.Text() + "," + strconv.FormatInt(time.Now().UTC().Unix(), 10) + "," + streamID
 		}
 	}
 

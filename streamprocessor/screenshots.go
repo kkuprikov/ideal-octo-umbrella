@@ -13,8 +13,7 @@ func GenerateScreenshot(ctx context.Context, url string, dir string, c chan stri
 	wg.Add(1)
 	defer wg.Done()
 
-	sliced := strings.Split(url, "/")
-	streamID := sliced[len(sliced)-1]
+	streamID := GetID(url)
 
 	var pathParts = []string{dir, "/", streamID, ".jpg"}
 	path := strings.Join(pathParts, "")

@@ -18,7 +18,7 @@ type ControlMessage struct {
 	Url     string
 }
 
-func Subscribe(ctx context.Context, control chan string, stats chan string, wg *sync.WaitGroup) {
+func Subscribe(ctx context.Context, control chan string, wg *sync.WaitGroup) {
 	redisDb, err := strconv.Atoi(os.Getenv("REDIS_DB"))
 
 	if err != nil {
@@ -40,12 +40,12 @@ func Subscribe(ctx context.Context, control chan string, stats chan string, wg *
 		if err != nil {
 			fmt.Println("error on redis subscription: %s", err)
 		}
-		go processMessage(ctx, msg.Payload, control, stats, wg)
+		go processMessage(ctx, msg.Payload, control, wg)
 	}
 
 }
 
-func processMessage(ctx context.Context, msg string, control chan string, stats chan string, wg *sync.WaitGroup) {
+func processMessage(ctx context.Context, msg string, control chan string, wg *sync.WaitGroup) {
 	var data ControlMessage
 
 	if err := json.Unmarshal([]byte(msg), &data); err != nil {
@@ -62,7 +62,7 @@ func processMessage(ctx context.Context, msg string, control chan string, stats 
 	case "start":
 		switch data.Type {
 		case "stats":
-			go GetStreamData(ctx, data.Url, control, stats, wg)
+			go GetStreamData(ctx, data.Url, control, wg)
 		case "snapshots":
 			go GenerateScreenshot(ctx, data.Url, os.Getenv("SNAPSHOT_DIR"), control, wg)
 		}
