@@ -2,8 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
-	"streamprocessor"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+
+	"github.com/kkuprikov/streamprocessor-go/streamprocessor"
 
 	"github.com/joho/godotenv"
 )
@@ -18,6 +24,17 @@ func main() {
 
 	control := make(chan string)
 	out := make(chan string)
+	var wg sync.WaitGroup
 
-	streamprocessor.Subscribe(ctx, control, out)
+	go streamprocessor.Subscribe(ctx, control, out, &wg)
+
+	termChan := make(chan os.Signal, 1)
+	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
+
+	<-termChan
+	fmt.Println("Shutdown signal received")
+	cancelFunc() // Signal cancellation to context.Context
+	wg.Wait()
+
+	fmt.Println("All workers done, shutting down!")
 }

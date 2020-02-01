@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/go-redis/redis"
 )
@@ -14,12 +15,10 @@ type ControlMessage struct {
 	Host    string
 	Type    string // stats or snapshots
 	Message string // start or stop
-	Params  struct {
-		StreamURL string
-	}
+	Url     string
 }
 
-func Subscribe(ctx context.Context, control chan string, stats chan string) {
+func Subscribe(ctx context.Context, control chan string, stats chan string, wg *sync.WaitGroup) {
 	redisDb, err := strconv.Atoi(os.Getenv("REDIS_DB"))
 
 	if err != nil {
@@ -33,6 +32,7 @@ func Subscribe(ctx context.Context, control chan string, stats chan string) {
 		DB:       redisDb,
 	})
 
+	fmt.Println("subscribe started")
 	psNewMessage := redisClient.Subscribe(os.Getenv("REDIS_CHANNEL"))
 
 	for {
@@ -40,28 +40,31 @@ func Subscribe(ctx context.Context, control chan string, stats chan string) {
 		if err != nil {
 			fmt.Println("error on redis subscription: %s", err)
 		}
-		go processMessage(ctx, msg.Payload, control, stats)
+		go processMessage(ctx, msg.Payload, control, stats, wg)
 	}
 
 }
 
-func processMessage(ctx context.Context, msg string, control chan string, stats chan string) {
+func processMessage(ctx context.Context, msg string, control chan string, stats chan string, wg *sync.WaitGroup) {
 	var data ControlMessage
 
 	if err := json.Unmarshal([]byte(msg), &data); err != nil {
 		fmt.Println("JSON unmarshalling error: ", err)
 		return
 	}
+
+	fmt.Println("received control msg: %s", data)
+
 	// start or stop task, depending on message type
 	switch data.Message {
 	case "stop":
-		control <- data.Type + "_" + data.Params.StreamURL
+		control <- data.Type + "_" + data.Url
 	case "start":
 		switch data.Type {
 		case "stats":
-			go GetStreamData(ctx, data.Params.StreamURL, control, stats)
+			go GetStreamData(ctx, data.Url, control, stats, wg)
 		case "snapshots":
-			go GenerateScreenshot(ctx, data.Params.StreamURL, os.Getenv("SNAPSHOT_DIR"), control)
+			go GenerateScreenshot(ctx, data.Url, os.Getenv("SNAPSHOT_DIR"), control, wg)
 		}
 	}
 }

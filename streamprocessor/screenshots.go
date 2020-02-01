@@ -6,9 +6,13 @@ import (
 	"log"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
-func GenerateScreenshot(ctx context.Context, url string, dir string, c chan string) {
+func GenerateScreenshot(ctx context.Context, url string, dir string, c chan string, wg *sync.WaitGroup) {
+	wg.Add(1)
+	defer wg.Done()
+
 	sliced := strings.Split(url, "/")
 	streamID := sliced[len(sliced)-1]
 
@@ -25,7 +29,7 @@ func GenerateScreenshot(ctx context.Context, url string, dir string, c chan stri
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Screenshot task for %s started", url)
+	fmt.Println("Screenshot task for %s started", url)
 
 	select {
 	case control := <-c:
@@ -34,6 +38,7 @@ func GenerateScreenshot(ctx context.Context, url string, dir string, c chan stri
 			if err := cmd.Process.Kill(); err != nil {
 				log.Fatal("failed to kill screenshot task: ", err)
 			}
+			fmt.Println("Screenshot task for %s stopped", url)
 		}
 		return
 	case <-ctx.Done():
@@ -42,6 +47,7 @@ func GenerateScreenshot(ctx context.Context, url string, dir string, c chan stri
 		if err := cmd.Process.Kill(); err != nil {
 			log.Fatal("failed to kill screenshot task: ", err)
 		}
+		fmt.Println("Screenshot task for %s stopped", url)
 		return
 	}
 }
