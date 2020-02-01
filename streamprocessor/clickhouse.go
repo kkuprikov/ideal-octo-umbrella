@@ -14,11 +14,11 @@ func StoreData(ctx context.Context, out chan string, wg *sync.WaitGroup) {
 	for {
 		select {
 		case v, ok := <-out:
-			fmt.Println("Received ", v)
 			if !ok {
 				fmt.Println("Stat channel closed, exiting...")
 				return
 			}
+			fmt.Println("Received ", v) // store data
 		case <-ctx.Done():
 			fmt.Println("ctx.Done() in StoreData")
 			return

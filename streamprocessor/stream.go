@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -16,6 +17,7 @@ import (
 func GetStreamData(ctx context.Context, url string, control chan string, wg *sync.WaitGroup) {
 	wg.Add(1)
 	defer wg.Done()
+	defer fmt.Println("Stats task for %s stopped", url)
 
 	streamID := GetID(url)
 
@@ -25,6 +27,8 @@ func GetStreamData(ctx context.Context, url string, control chan string, wg *syn
 	cmd := exec.Command("ffprobe", args...)
 
 	stdout, err := cmd.StdoutPipe()
+	defer stdout.Close()
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -35,16 +39,30 @@ func GetStreamData(ctx context.Context, url string, control chan string, wg *syn
 	out := make(chan string)
 
 	go StoreData(ctx, out, wg)
-	go readData(stdout, out, streamID)
+	go readData(stdout, out, streamID, wg)
 
 	select {
 	case <-ctx.Done():
-		stdout.Close()
 		fmt.Println("ctx done in GetStreamData!")
+		if err := cmd.Process.Kill(); err != nil {
+			log.Fatal("failed to kill stats task: ", err)
+		}
+		return
+	case c := <-control:
+		controls := strings.Split(c, "_")
+		if (controls[0] == "stats") && (controls[1] == url) {
+			if err := cmd.Process.Kill(); err != nil {
+				log.Fatal("failed to kill stats task: ", err)
+			}
+			return
+		}
 	}
 }
 
-func readData(stdout io.ReadCloser, out chan string, streamID string) {
+func readData(stdout io.ReadCloser, out chan string, streamID string, wg *sync.WaitGroup) {
+	wg.Add(1)
+	defer wg.Done()
+	defer close(out)
 	scanner := bufio.NewScanner(stdout)
 
 	for scanner.Scan() {
