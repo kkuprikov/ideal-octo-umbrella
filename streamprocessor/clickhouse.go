@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-func StoreData(ctx context.Context, out chan string, wg *sync.WaitGroup) {
+func storeData(ctx context.Context, out chan string, wg *sync.WaitGroup) {
 	wg.Add(1)
 	defer wg.Done()
 	// read from channel, form some chunks and send to database

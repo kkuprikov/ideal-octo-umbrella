@@ -9,6 +9,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/julienschmidt/httprouter"
 	"github.com/kkuprikov/streamprocessor-go/streamprocessor"
 
 	"github.com/joho/godotenv"
@@ -22,11 +23,35 @@ func main() {
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
-	control := make(chan string)
+	appPort := os.Getenv("PORT")
 
-	var wg sync.WaitGroup
+	if appPort == "" {
+		log.Fatal("Application port not specified")
+	}
 
-	go streamprocessor.Subscribe(ctx, control, &wg)
+	ingesterUrl := os.Getenv("INGESTER_API_URL")
+
+	if ingesterUrl == "" {
+		log.Fatal("Ingester URL not specified")
+	}
+
+	var (
+		wg    sync.WaitGroup
+		tasks streamprocessor.SafeTasks
+	)
+
+	tasks.Stats = make(map[string](chan string))
+	tasks.Screenshots = make(map[string](chan string))
+
+	for _, id := range streamprocessor.GetRunningStreams(ingesterUrl) {
+		streamprocessor.NewScreenshotTask(ctx, id, &tasks, &wg)
+		streamprocessor.NewStatsTask(ctx, id, &tasks, &wg)
+	}
+
+	s := &streamprocessor.Server{}
+	s.Router = httprouter.New()
+
+	go s.Start(ctx, appPort, &wg, &tasks)
 
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
